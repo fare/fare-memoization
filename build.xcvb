@@ -1,0 +1,5 @@
+#+xcvb
+(module
+ (:fullname "fare-memoization"
+  :depends-on ("memoization")
+  :supersedes-asdf ("fare-memoization")))

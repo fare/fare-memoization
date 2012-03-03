@@ -10,8 +10,6 @@
             :in root-suite
             :documentation "Testing memoization"))
 
-;;; No test just yet.
-
 (defparameter *counter* 0)
 (declaim (notinline foo))
 (defun foo (x) (list x (incf *counter*)))
@@ -58,4 +56,5 @@
   (is (equal (quux :a) '(:a 1)))
   (is (equal (quux :b) '(:b 12)))
   (is (equal (quuux :a) '(:a 1)))
-  (is (equal (quuux :b) '(:b 12))))
+  (is (equal (quuux :b) '(:b 12)))
+  (is (eq (memoized-funcall 'cons 1 2) (memoized-funcall 'cons 1 2))))

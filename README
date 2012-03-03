@@ -8,7 +8,9 @@ to focus on the computation logic and handles the caching part for you.
 It also allows you to memoize a function after the fact when you need it.
 Obviously, you should only use memoization for functions where it is meaningful:
 pure functions that are expensive to compute,
-non-deterministic functions for which it matters that choices be consistent, etc.
+non-deterministic functions for which it matters that choices be consistent,
+hash-consing constructors that need return the same result when called with
+the same arguments, user-visible constructors for singleton classes, etc.
 
 This file first documents the interface of this library, then
 compares fare-memoization to previous memoization libraries,

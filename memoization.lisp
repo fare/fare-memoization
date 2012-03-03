@@ -100,11 +100,11 @@ Keyword arguments TABLE and NORMALIZATION are as per MEMOIZE."
 ;;; arguments that you don't want memoized in dynamic variable bindings.
 (defvar *memoized* (make-hash-table :test 'equal))
 
-(define-memo-function (memoized-funcall :table *memoized*) (fun &rest arguments)
+(define-memo-function (memoized-funcall :table *memoized*) (function &rest arguments)
   "This is a generic memoized function"
-  (apply fun arguments))
+  (apply function arguments))
 
-(defun memoized-apply (fun &rest args)
-  (apply #'apply #'memoized-funcall fun args))
+(defun memoized-apply (function &rest arguments)
+  (apply #'apply #'memoized-funcall function arguments))
 
 );eval-when
