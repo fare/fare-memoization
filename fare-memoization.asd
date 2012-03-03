@@ -1,6 +1,6 @@
 ;;; -*- Mode: Lisp ; Base: 10 ; Syntax: ANSI-Common-Lisp -*-
 (defsystem :fare-memoization
-  :description "Simple library for memoizing functions"
+  :description "memoizing functions the correct, portable way"
   :long-description "define memoized functions and memoize previously defined functions"
   :components
   ((:file "memoization")))
