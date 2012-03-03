@@ -1,0 +1,173 @@
+FARE-MEMOIZATION
+
+This library builds on an age-old idea: dynamically memoizing Lisp functions.
+A memoized function remembers results from previous computations, and
+returns cached results when called with the same arguments again,
+rather than re-do the computation. This library allows you
+to focus on the computation logic and handles the caching part for you.
+It also allows you to memoize a function after the fact when you need it.
+Obviously, you should only use memoization for functions where it is meaningful:
+pure functions that are expensive to compute,
+non-deterministic functions for which it matters that choices be consistent, etc.
+
+This file first documents the interface of this library, then
+compares fare-memoization to previous memoization libraries,
+and finally discusses a false good idea of feature I had.
+
+
+==== Exported Functionality ====
+
+The fare-memoization library creates a package FARE-MEMOIZATION,
+with nickname FMEMO, that exports the following macros and functions:
+
+MEMOIZE SYMBOL &KEY TABLE NORMALIZATION
+  This function memoizes the function associated to given SYMBOL.
+  If the function was already memoized, it resets
+  the associated memoization TABLE and NORMALIZATION function
+  to those explicitly specified by this latter call to MEMOIZE, or
+  to their implicit defaults (respectively a fresh EQUAL hash-table and NIL).
+  Beware that function was declared NOTINLINE, callers are not guaranteed
+  to see the memoized function rather than have inlined the original one.
+  Moreover, if the function is self-recursive, this
+  (declaim (notinline SYMBOL)) must have happened before it was defined.
+  Keyword arguments TABLE and NORMALIZATION are as usual (see below).
+
+UNMEMOIZE SYMBOL
+  This function undoes what MEMOIZE did to the given SYMBOL.
+
+DEFINE-MEMO-FUNCTION NAME FORMALS &BODY BODY
+  This macro is like DEFUN, but its the defined function will be memoized.
+  If NAME is a CONS rather than a symbol,
+  the actual name for DEFUN will be its first element, and
+  the rest will be a list with keyword arguments TABLE and NORMALIZATION
+  as usual (see below).
+
+MEMOIZING FUNCTION &KEY TABLE NORMALIZATION
+  This takes a function as argument, and returns a new function that
+  calls the given FUNCTION when provided arguments for which
+  a result wasn't previously memoized.
+  Keyword arguments are as usual (see below).
+  Note that if function is self-recursive,
+  only the toplevel call will be memoized.
+
+MEMOIZED-FUNCALL FUNCTION &REST ARGUMENTS
+  This is a generic way to memoize arbitrary functions on a per-call basis:
+  all calls to MEMOIZED-FUNCALL share the same cache, which uses
+  the EQUAL hash-table *MEMOIZED* below, and no normalization function.
+
+MEMOIZED-APPLY FUNCTION &REST ARGUMENTS
+  This function is to MEMOIZED-FUNCALL as APPLY is to FUNCALL.
+
+*MEMOIZED*
+  An EQUAL hash-table, the memoized computation cache for MEMOIZED-FUNCALL.
+  You may thus easily (clr-hash *memoized*) to clear the cache of all
+  such generic memoized function calls.
+
+
+The keyword arguments TABLE and NORMALIZATION allow users to customize
+the behavior of normalization.
+
+TABLE is the hash-table in which to store the memoized computations.
+Its keys will be lists of arguments passed to the function, and
+its values will be remembered lists of values returned by the function
+when previously called with the respective arguments.
+The default value if not specified will be a fresh EQUAL hash-table.
+The main uses for explicitly specifying such a table is to be able to
+clear the table when the computations are somehow invalidated,
+or pre-fill the table with seed values,
+so the computations terminate when they reach the edge cases.
+You'll usually want any such explicitly given table to be otherwise
+reachable, for instance by binding a special variable to it.
+The hash-table is an EQUAL hash-table by default, but
+you can explicitly pass an EQUALP hash-table if you want.
+Since the keys are lists (of arguments),
+it is inappropriate to use an EQ or EQL hash-table.
+If your implementation allows it and it is meaningful,
+you may somehow create a hash-table wherein the keys are weak pointers;
+how to achieve such an effect is not portable,
+see your implementation's documentation.
+
+NORMALIZATION when non-NIL is a function that normalizes argument lists.
+The default NIL is functionally the same as explicitly passing #'IDENTITY.
+Such a function is notably necessary in cases such as the function
+having optional arguments or keyword arguments, wherein you might want
+to canonicalize the order in which keyword arguments appear, explicitly
+fill in the default values for the various arguments, coerce some arguments
+to some appropriate type, possibly upcase or downcase some strings, etc.
+This may allow you to reduce the size of the memoization table, but also and
+most importantly to make sure two semantically equivalent lists of arguments
+(according to the semantics of YOUR application) yield the very same result.
+
+
+==== Other Common Lisp MEMOIZATION libraries ====
+
+Notable precursors published for Common Lisp include the following.
+
+Marty Hall's 1993 memoization package
+	http://www.csee.umbc.edu/courses/pub/Memoization/
+as notably published as part of Araneida
+	http://www.common-lisp.net/project/araneida/araneida-release/memoization.lisp
+It tries to do too much, yet fails in some basic cases:
+it treats MEMOIZEing as if it were TRACEing, as something temporary,
+done to explore existing program behavior, that can be disabled,
+and is not required as part of the permanent semantics of your program
+(what with allowing to mass-unmemoize all functions? what if a function's
+specified memoization table is essential to its termination?).
+The way to customize memoization is not very principled, and its proposed
+examples and optional optimizations are invitations to writing bad programs.
+At the same time, it won't handle multiple return values, and
+it will fail silently in presence of inlining.
+
+The version from Peter Norvig's book
+"Principles of Artificial Intelligence Programming"
+	http://norvig.com/paip/auxfns.lisp
+is a nice quick proof of concept, but
+not anything anyone would want to use for real.
+
+Tim Bradshaw's memoize library based on the above,
+	http://www.tfeb.org/lisp/hax.html#MEMOIZE
+will also fail to handle multiple return values,
+dubiously offer to clear all memoized functions,
+make it hard to use your implementation's weak hash-table feature.
+It has a complex memoized-labels of questionable utility;
+with fare-memoization, you can use MEMOIZING or MEMOIZED-FUNCALL
+to memoize whichever local function you desire without having
+to memoize every function in the same labels,
+at a scope you have better control upon.
+
+Finally, there's an earlier version of MEMOIZE that I wrote
+as part of my own "Fibonacci" discussion and once made part of FARE-UTILS.
+	http://fare.tunes.org/files/fun/fibonacci.lisp
+FARE-MEMOIZATION is a more elaborate version of it, with an improved API,
+notably regarding the TABLE and NORMALIZATION arguments.
+
+
+As compared to these precursors, fare-memoization tries to:
+* do less, providing only what is strictly needed in real-world uses.
+* have well-defined semantics in all cases (modulo documented constraints).
+* be portable to all compliant CL implementations without hidden assumptions.
+* give maximum control to the user in defining memoization tables.
+* have a modern packaging, which these days means ASDF and quicklisp.
+
+
+==== False good idea not implemented by FARE-MEMOIZATION ====
+
+At some point, I wanted to provide a library function as follows:
+(define-memo-function make-the (class &rest keys)
+  (apply #'make-instance (find-class class) keys))
+But there is no portable way to normalize initialization key list:
+not only do you have to sort the keys (which can be done portably as below,
+assuming they are all keywords), you first have to merge default initform's
+for slots -- and because in practice make-instance and shared-initialize
+methods are allowed to do things before, after and around the initform's
+depending on provided keys, you cannot do that in a portable way at all.
+
+In conclusion, if programmers want to have classes with objects that are
+interned in a table that ensures that two objects are EQ if their keys
+verify some equality predicate, they have to develop their own protocol.
+Things get even murkier when the creation of some object is requested,
+but an object already exists that has a similar keys, yet with other
+properties not covered by key equality that differ from the previously
+interned object. How are the two objects to be reconciled? This also
+requires application-dependent semantics that the protocol must allow
+the programmer to specify.
