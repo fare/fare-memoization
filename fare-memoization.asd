@@ -2,6 +2,7 @@
 (defsystem :fare-memoization
   :description "memoizing functions the correct, portable way"
   :long-description "define memoized functions and memoize previously defined functions"
+  :license "MIT"
   :components
   ((:file "memoization")))
 
