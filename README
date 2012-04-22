@@ -37,6 +37,11 @@ MEMOIZE SYMBOL &KEY TABLE NORMALIZATION
 UNMEMOIZE SYMBOL
   This function undoes what MEMOIZE did to the given SYMBOL.
 
+UNMEMOIZE-1 SYMBOL &REST ARGUMENTS
+  This function removes one entry from the memoization cache of SYMBOL.
+  It returns T if an entry was found and removed corresponding to ARGUMENTS,
+  and NIL if none was found.
+
 DEFINE-MEMO-FUNCTION NAME FORMALS &BODY BODY
   This macro is like DEFUN, but its the defined function will be memoized.
   If NAME is a CONS rather than a symbol,
