@@ -3,7 +3,7 @@
 (cl:defpackage #:fare-memoization
   (:nicknames #:fmemo)
   (:use #:common-lisp)
-  (:export #:memoize #:unmemoize
+  (:export #:memoize #:unmemoize #:unmemoize-1
            #:define-memo-function #:memoizing
            #:memoized-funcall #:memoized-apply #:*memoized*))
 
@@ -34,6 +34,20 @@ with a hash-table TABLE, being called with arguments ARGUMENTS"
             (setf (gethash arguments table) results)
             (apply #'values results))))))
 
+(defun unmemoize-1 (symbol &rest arguments)
+  "Forget the memoized result of calling SYMBOL with arguments ARGUMENTS.
+Do not forget memoized results of calling the function with other arguments.
+Returns T if a stored result was found and removed, NIL otherwise."
+ (let ((info (get symbol 'memoization-info)))
+   (when info
+     (assert (typep info 'memoization-info))
+     (with-slots (function table normalization) info
+       (if normalization
+         (setf arguments (apply normalization arguments)))
+       (multiple-value-bind (results foundp) (gethash arguments table)
+         (declare (ignore results))
+         (remhash arguments table)
+         foundp)))))
 
 (defun unmemoize (symbol)
   "undoing the memoizing function, return the memoization-info record for the function"
