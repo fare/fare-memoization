@@ -27,12 +27,14 @@
   "the basic helper for computing with a memoized function FUNCTION,
 with a hash-table TABLE, being called with arguments ARGUMENTS"
   (with-slots (function table normalization) info
-    (if normalization (setf arguments (apply normalization arguments)))
-    (multiple-value-bind (results foundp) (gethash arguments table)
-      (if foundp (apply #'values results)
-          (let ((results (multiple-value-list (apply function arguments))))
-            (setf (gethash arguments table) results)
-            (apply #'values results))))))
+    (flet ((f (&rest arguments)
+             (multiple-value-bind (results foundp) (gethash arguments table)
+               (if foundp (apply #'values results)
+                   (let ((results (multiple-value-list (apply function arguments))))
+                     (setf (gethash arguments table) results)
+                     (apply #'values results))))))
+      (if normalization (apply normalization #'f arguments)
+          (apply #'f arguments)))))
 
 (defun unmemoize-1 (symbol &rest arguments)
   "Forget the memoized result of calling SYMBOL with arguments ARGUMENTS.
@@ -42,12 +44,13 @@ Returns T if a stored result was found and removed, NIL otherwise."
    (when info
      (assert (typep info 'memoization-info))
      (with-slots (function table normalization) info
-       (if normalization
-         (setf arguments (apply normalization arguments)))
-       (multiple-value-bind (results foundp) (gethash arguments table)
-         (declare (ignore results))
-         (remhash arguments table)
-         foundp)))))
+       (flet ((f (&rest arguments)
+                (multiple-value-bind (results foundp) (gethash arguments table)
+                  (declare (ignore results))
+                  (remhash arguments table)
+                  foundp)))
+         (if normalization (apply normalization #'f arguments)
+             (apply #'f arguments)))))))
 
 (defun unmemoize (symbol)
   "undoing the memoizing function, return the memoization-info record for the function"
@@ -71,9 +74,12 @@ specify an existing hash-table for the memoized computations;
 it may have been created with appropriate options regarding equality predicate
 and weak pointers, initial contents, etc., and you may clear it when needed.
 Keyword argument NORMALIZATION (default: NIL) lets you specify a function
-with which to transform the argument list before to query the computation cache
-and invoke the computation function; NIL means no such transformation,
-which has the same effect as specifying #'IDENTITY as a transformation.
+taking a continuation and the function arguments,
+e.g. with lambda-list (CONTINUATION &REST ARGUMENTS)
+which may transform the argument list before to call the continuation
+with a normalized argument list that will be used to query the computation cache
+and invoke the actual computation function; NIL means no such transformation,
+which has the same effect as specifying #'APPLY as a transformation.
 
 If the function was already being memoized, any previous memoization information,
 i.e. TABLE and NORMALIZATION, is replaced with the newly specified values."

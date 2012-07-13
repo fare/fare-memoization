@@ -94,8 +94,13 @@ you may somehow create a hash-table wherein the keys are weak pointers;
 how to achieve such an effect is not portable,
 see your implementation's documentation.
 
-NORMALIZATION when non-NIL is a function that normalizes argument lists.
-The default NIL is functionally the same as explicitly passing #'IDENTITY.
+NORMALIZATION when non-NIL is a function that normalizes argument lists;
+the function is called with a continuation and the function arguments,
+e.g. with lambda-list (CONTINUATION &REST ARGUMENTS);
+it may transform the argument list before to call the continuation with
+a normalized argument list that will be used to query the computation cache
+and invoke the actual computation function. NIL means no such transformation,
+which has the same effect as specifying #'APPLY as a transformation.
 Such a function is notably necessary in cases such as the function
 having optional arguments or keyword arguments, wherein you might want
 to canonicalize the order in which keyword arguments appear, explicitly
