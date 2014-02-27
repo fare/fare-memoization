@@ -1,4 +1,4 @@
-#+xcvb (module nil)
+#+xcvb (module ())
 
 (cl:defpackage #:fare-memoization
   (:nicknames #:fmemo)
@@ -100,6 +100,7 @@ is a list of keyword arguments, TABLE and NORMALIZATION as per MEMOIZE."
       (if (consp name) (values (car name) (cdr name)) (values name ()))
     `(progn
        (declaim (notinline ,name))
+       (unmemoize ',name)
        (defun ,name ,formals
          ,@body)
        (memoize ',name ,@keys))))
