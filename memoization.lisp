@@ -15,6 +15,9 @@
   ((function
     :initarg :function :reader memoized-function
     :documentation "The original, unmemoized, function")
+   (wrapped-function
+    :accessor wrapped-function
+    :documentation "The memoizing version of the function.")
    (table
     :initarg :table :reader memoized-table :initform (make-hash-table :test 'equal)
     :documentation "a hash-table containing the memoized computations so far")
@@ -57,6 +60,7 @@ Returns T if a stored result was found and removed, NIL otherwise."
   (let ((info (get symbol 'memoization-info)))
     (when info
       (assert (typep info 'memoization-info))
+      (assert (eq (wrapped-function info) (symbol-function symbol)))
       (setf (symbol-function symbol) (memoized-function info))
       (remprop symbol 'memoization-info)
       info)))
@@ -90,7 +94,8 @@ i.e. TABLE and NORMALIZATION, is replaced with the newly specified values."
                  :normalization normalization)))
     (setf (symbol-function symbol) #'(lambda (&rest args)
                                        (compute-memoized-function info args))
-	  (get symbol 'memoization-info) info)))
+          (wrapped-function info) (symbol-function symbol)
+          (get symbol 'memoization-info) info)))
 
 (defmacro define-memo-function (name formals &body body)
   "Like defun, but creates a memoized function.
@@ -110,7 +115,8 @@ is a list of keyword arguments, TABLE and NORMALIZATION as per MEMOIZE."
 Keyword arguments TABLE and NORMALIZATION are as per MEMOIZE."
   (declare (ignore table normalization))
   (let ((info (apply 'make-instance 'memoization-info :function function keys)))
-    #'(lambda (&rest arguments) (compute-memoized-function info arguments))))
+    (setf (wrapped-function info)
+          #'(lambda (&rest arguments) (compute-memoized-function info arguments)))))
 
 ;;; This is your generic memoized function.
 ;;; If you want to make sure that a given function is only ever called once
