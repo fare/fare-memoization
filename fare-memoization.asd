@@ -7,7 +7,7 @@
   ((:file "memoization"))
   :in-order-to ((test-op (load-op "fare-memoization/test")))
   :perform (test-op :after (o c)
-             (symbol-call :fare-memoization-test :test-memoization))))
+             (symbol-call :fare-memoization-test :test-memoization)))
 
 (defsystem "fare-memoization/test"
   :depends-on ("fare-memoization" "hu.dwim.stefil")
