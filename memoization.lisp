@@ -60,7 +60,13 @@ Returns T if a stored result was found and removed, NIL otherwise."
   (let ((info (get symbol 'memoization-info)))
     (when info
       (assert (typep info 'memoization-info))
-      (assert (eq (wrapped-function info) (symbol-function symbol)))
+      (unless (eq (wrapped-function info) (symbol-function symbol))
+        (cerror "Restore the function to pre-memoization state anyway"
+                "Tried to unmemoize ~S, but the symbol's function was changed since. ~
+                Maybe you need to UNTRACE it first, or cancel some ADVICE; ~
+                or maybe you failed to unmemoize before you redefined it, ~
+                and will need to re-redefine it after restoring the old version."
+                symbol))
       (setf (symbol-function symbol) (memoized-function info))
       (remprop symbol 'memoization-info)
       info)))
