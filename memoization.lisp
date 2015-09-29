@@ -74,8 +74,8 @@ Returns T if a stored result was found and removed, NIL otherwise."
 (defun memoize (symbol &key (table (make-hash-table :test 'equal)) normalization)
   "Memoize the function associated to given SYMBOL.
 
-Beware that function was declared NOTINLINE, callers are not guaranteed
-to see the memoized function rather than have inlined the original one.
+Beware that unless the function was declared NOTINLINE, callers may have inlined
+the original definition and will not see the memoized function.
 Moreover, if the function is self-recursive,
 this declaration must have happened before it was defined.
 
