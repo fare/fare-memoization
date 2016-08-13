@@ -13,7 +13,7 @@
 
 (defclass memoization-info ()
   ((function
-    :initarg :function :reader memoized-function
+    :initarg :function :reader original-function
     :documentation "The original, unmemoized, function")
    (wrapped-function
     :accessor wrapped-function
@@ -67,7 +67,7 @@ Returns T if a stored result was found and removed, NIL otherwise."
                 or maybe you failed to unmemoize before you redefined it, ~
                 and will need to re-redefine it after restoring the old version."
                 symbol))
-      (setf (symbol-function symbol) (memoized-function info))
+      (setf (symbol-function symbol) (original-function info))
       (remprop symbol 'memoization-info)
       info)))
 
