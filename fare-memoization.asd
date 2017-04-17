@@ -5,11 +5,8 @@
   :license "MIT"
   :author "Francois-Rene Rideau"
   :version "1.0.0"
-  :components
-  ((:file "memoization"))
-  :in-order-to ((test-op (load-op "fare-memoization/test")))
-  :perform (test-op :after (o c)
-             (symbol-call :fare-memoization-test :test-memoization)))
+  :components ((:file "memoization"))
+  :in-order-to ((test-op (test-op "fare-memoization/test"))))
 
 (defsystem "fare-memoization/test"
   :description "memoizing functions the correct, portable way"
@@ -17,5 +14,5 @@
   :author "Francois-Rene Rideau"
   :version "1.0.0"
   :depends-on ("fare-memoization" "hu.dwim.stefil")
-  :components
-  ((:file "memoization-test")))
+  :components ((:file "memoization-test"))
+  :perform (test-op (o c) (symbol-call :fare-memoization-test :test-memoization)))
