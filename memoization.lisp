@@ -26,18 +26,31 @@
     :documentation "either NIL or a function to normalize arguments before memoization"))
   (:documentation "information about a function that was memoized"))
 
-(defun compute-memoized-function (info arguments)
-  "the basic helper for computing with a memoized function FUNCTION,
-with a hash-table TABLE, being called with arguments ARGUMENTS"
+(defun memoization-wrapper (info)
+  "the basic helper for computing with a memoized function described by INFO,
+being called with arguments ARGUMENTS"
   (with-slots (function table normalization) info
-    (flet ((f (&rest arguments)
-             (multiple-value-bind (results foundp) (gethash arguments table)
-               (if foundp (apply #'values results)
-                   (let ((results (multiple-value-list (apply function arguments))))
-                     (setf (gethash arguments table) results)
-                     (apply #'values results))))))
-      (if normalization (apply normalization #'f arguments)
-          (apply #'f arguments)))))
+    (labels ((f (&rest arguments)
+               (multiple-value-bind (results foundp) (gethash arguments table)
+                 (if foundp (apply #'values results)
+                     (let ((results (multiple-value-list (apply function arguments))))
+                       (setf (gethash arguments table) results)
+                       (apply #'values results)))))
+             (n (&rest arguments)
+               (apply #'f (apply normalization arguments))))
+      (if normalization #'n #'f))))
+
+(defun make-memoization-info (function &key (table (make-hash-table :test 'equal)) normalization)
+  (let ((info (make-instance 'memoization-info
+                             :function function :table table
+                             :normalization normalization)))
+    (setf (wrapped-function info) (memoization-wrapper info))
+    info))
+
+(defun compute-memoized-function (info arguments)
+  "the basic helper for computing with a memoized function described by INFO,
+being called with arguments ARGUMENTS"
+  (apply (wrapped-function info) arguments))
 
 (defun unmemoize-1 (symbol &rest arguments)
   "Forget the memoized result of calling SYMBOL with arguments ARGUMENTS.
@@ -52,8 +65,7 @@ Returns T if a stored result was found and removed, NIL otherwise."
                   (declare (ignore results))
                   (remhash arguments table)
                   foundp)))
-         (if normalization (apply normalization #'f arguments)
-             (apply #'f arguments)))))))
+         (apply #'f (if normalization (apply normalization arguments) arguments)))))))
 
 (defun unmemoize (symbol)
   "undoing the memoizing function, return the memoization-info record for the function"
@@ -95,12 +107,8 @@ If the function was already being memoized, any previous memoization information
 i.e. TABLE and NORMALIZATION, is replaced with the newly specified values."
   (unmemoize symbol)
   (let* ((function (symbol-function symbol))
-         (info (make-instance 'memoization-info
-                 :function function :table table
-                 :normalization normalization)))
-    (setf (symbol-function symbol) #'(lambda (&rest args)
-                                       (compute-memoized-function info args))
-          (wrapped-function info) (symbol-function symbol)
+         (info (make-memoization-info function :table table :normalization normalization)))
+    (setf (symbol-function symbol) (wrapped-function info)
           (get symbol 'memoization-info) info)))
 
 (defmacro define-memo-function (name formals &body body)
@@ -120,9 +128,8 @@ is a list of keyword arguments, TABLE and NORMALIZATION as per MEMOIZE."
   "Given a function, return a memoizing version of same function.
 Keyword arguments TABLE and NORMALIZATION are as per MEMOIZE."
   (declare (ignore table normalization))
-  (let ((info (apply 'make-instance 'memoization-info :function function keys)))
-    (setf (wrapped-function info)
-          #'(lambda (&rest arguments) (compute-memoized-function info arguments)))))
+  (let ((info (apply 'make-memoization-info function keys)))
+    (wrapped-function info)))
 
 ;;; This is your generic memoized function.
 ;;; If you want to make sure that a given function is only ever called once
