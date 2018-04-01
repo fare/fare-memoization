@@ -21,29 +21,37 @@
    (table
     :initarg :table :reader memoized-table :initform (make-hash-table :test 'equal)
     :documentation "a hash-table containing the memoized computations so far")
-   (normalization
-    :initarg :normalization :reader memoized-normalization :initform nil
+   (argument-normalizer
+    :initarg :argument-normalizer :reader memoized-argument-normalizer :initform nil
+    :documentation "either NIL or a function to normalize arguments before memoization")
+   (call-normalizer
+    :initarg :call-normalizer :initarg :normalization :reader memoized-call-normalizer :initform nil
     :documentation "either NIL or a function to normalize arguments before memoization"))
   (:documentation "information about a function that was memoized"))
 
 (defun memoization-wrapper (info)
   "the basic helper for computing with a memoized function described by INFO,
 being called with arguments ARGUMENTS"
-  (with-slots (function table normalization) info
-    (labels ((f (&rest arguments)
-               (multiple-value-bind (results foundp) (gethash arguments table)
-                 (if foundp (apply #'values results)
-                     (let ((results (multiple-value-list (apply function arguments))))
-                       (setf (gethash arguments table) results)
-                       (apply #'values results)))))
-             (n (&rest arguments)
-               (apply #'f (apply normalization arguments))))
-      (if normalization #'n #'f))))
+  (with-slots (function table argument-normalizer call-normalizer) info
+    (let* ((f (lambda (&rest arguments)
+                (multiple-value-bind (results foundp) (gethash arguments table)
+                  (if foundp (apply #'values results)
+                      (let ((results (multiple-value-list (apply function arguments))))
+                        (setf (gethash arguments table) results)
+                        (apply #'values results))))))
+           (n (if call-normalizer
+                  (lambda (&rest arguments)
+                    (apply call-normalizer f arguments))
+                  f)))
+      (if argument-normalizer
+          (lambda (&rest arguments) (apply n (apply argument-normalizer arguments)))
+          n))))
 
-(defun make-memoization-info (function &key (table (make-hash-table :test 'equal)) normalization)
-  (let ((info (make-instance 'memoization-info
-                             :function function :table table
-                             :normalization normalization)))
+(defun make-memoization-info (function
+                              &rest keys
+                              &key table argument-normalizer call-normalizer normalization)
+  (declare (ignore table argument-normalizer call-normalizer normalization))
+  (let ((info (apply 'make-instance 'memoization-info :function function keys)))
     (setf (wrapped-function info) (memoization-wrapper info))
     info))
 
@@ -59,13 +67,13 @@ Returns T if a stored result was found and removed, NIL otherwise."
  (let ((info (get symbol 'memoization-info)))
    (when info
      (assert (typep info 'memoization-info))
-     (with-slots (function table normalization) info
+     (with-slots (function table call-normalizer argument-normalizer) info
        (flet ((f (&rest arguments)
                 (multiple-value-bind (results foundp) (gethash arguments table)
                   (declare (ignore results))
                   (remhash arguments table)
                   foundp)))
-         (apply #'f (if normalization (apply normalization arguments) arguments)))))))
+         (apply (or call-normalizer 'apply) #'f (apply (or argument-normalizer 'list) arguments)))))))
 
 (defun unmemoize (symbol)
   "undoing the memoizing function, return the memoization-info record for the function"
@@ -83,7 +91,7 @@ Returns T if a stored result was found and removed, NIL otherwise."
       (remprop symbol 'memoization-info)
       info)))
 
-(defun memoize (symbol &key (table (make-hash-table :test 'equal)) normalization)
+(defun memoize (symbol &rest keys &key table argument-normalizer call-normalizer normalization)
   "Memoize the function associated to given SYMBOL.
 
 Beware that unless the function was declared NOTINLINE, callers may have inlined
@@ -95,19 +103,29 @@ Keyword argument TABLE (default: a fresh EQUAL hash-table) lets you
 specify an existing hash-table for the memoized computations;
 it may have been created with appropriate options regarding equality predicate
 and weak pointers, initial contents, etc., and you may clear it when needed.
-Keyword argument NORMALIZATION (default: NIL) lets you specify a function
-taking a continuation and the function arguments,
+
+Keyword argument ARGUMENT-NORMALIZER (default: NIL) lets you specify a function
+taking a list of arguments and returning a normalized list of arguments,
+so that all lists with the same normalization will share the same memoized
+computation. NIL means no such normalization, which is the same as #'LIST.
+
+Keyword argument CALL-NORMALIZER (alias: NORMALIZATION, default: NIL)
+lets you specify a function taking a continuation and the function arguments,
 e.g. with lambda-list (CONTINUATION &REST ARGUMENTS)
 which may transform the argument list before to call the continuation
 with a normalized argument list that will be used to query the computation cache
 and invoke the actual computation function; NIL means no such transformation,
 which has the same effect as specifying #'APPLY as a transformation.
 
-If the function was already being memoized, any previous memoization information,
-i.e. TABLE and NORMALIZATION, is replaced with the newly specified values."
+If the function was already being memoized, any previous memoization arguments,
+i.e. TABLE and ARGUMENT-NORMALIZER, is replaced with the newly specified values
+(unspecified arguments are replaced by defaults rather than left as previously
+specified).
+"
+  (declare (ignore table argument-normalizer call-normalizer normalization))
   (unmemoize symbol)
   (let* ((function (symbol-function symbol))
-         (info (make-memoization-info function :table table :normalization normalization)))
+         (info (apply 'make-memoization-info function keys)))
     (setf (symbol-function symbol) (wrapped-function info)
           (get symbol 'memoization-info) info)))
 

@@ -61,7 +61,7 @@
   (is (equal (quuux :b) '(:b 12)))
   (is (eq (memoized-funcall 'cons 1 2) (memoized-funcall 'cons 1 2)))
   (memoize 'foo)
-  (memoize 'keyux :normalization #'normalize-keyux-arguments)
+  (memoize 'keyux :argument-normalizer #'normalize-keyux-arguments)
   (is (equal (keyux) '(1 2 13)))
   (is (equal (keyux :a 1 :b 2) '(1 2 13)))
   (is (equal (keyux :a 1) '(1 2 13)))
