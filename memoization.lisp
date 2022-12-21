@@ -5,7 +5,8 @@
   (:use #:common-lisp)
   (:export #:memoize #:unmemoize #:unmemoize-1
            #:define-memo-function #:memoizing
-           #:memoized-funcall #:memoized-apply #:*memoized*))
+           #:memoized-funcall #:memoized-apply #:*memoized*
+           #:memoization-info #:unmemoizing #:memoization-consistent-p))
 
 (in-package :fare-memoization)
 
@@ -166,3 +167,76 @@ Keyword arguments TABLE and NORMALIZATION are as per MEMOIZE."
   (apply #'apply #'memoized-funcall function arguments))
 
 );eval-when
+
+;;; Feature - Consistency Check
+
+(defun memoization-info (symbol)
+  "Return the memoization info for symbol."
+  (or (get symbol 'memoization-info)
+      (warn "No memoized function has name ~a." symbol)))
+
+(defun memoization-table (symbol)
+  "Return the hash-table for the memoized symbol."
+  (slot-value (memoization-info symbol) 'table))
+
+(defun unmemoizing (symbol)
+  "Given a symbol which is a name of a memoized function, return
+the original function."
+  (original-function (memoization-info symbol)))
+
+(defun memoization-consistent-p (symbol &optional (test #'equal))
+  "Predicate that returns a boolean that is T if the memoization
+table for SYMBOL is consistent, i.e. if every key in the table is
+associated to values that are not EQUAL to those returned by the
+function being memoized. If the table is inconsistent, the
+primary value returned is NIL, and additional values returned are
+KEY HASH-TABLE-VALUES FUNCTION-VALUES CONDITION of the first
+inconsistent key found in the table, the values stored in the
+table, and the values returned by the memoized function."
+  (flet ((check (key ht-values)
+           (multiple-value-bind (fn-values condition)
+               (ignore-errors (multiple-value-list
+                               (apply (unmemoizing symbol) key)))
+             (list :match? (funcall test ht-values fn-values)
+                   :condition condition
+                   :fn-values fn-values))))
+    (let* (result match? condition fn-values)
+      (loop with table  = (memoization-table symbol)
+            for  key       being the hash-keys   of table
+            for  ht-values being the hash-values of table
+            do   (setf result    (check key ht-values)
+                       match?    (getf result :match?)
+                       condition (getf result :condition)
+                       fn-values (getf result :fn-values))
+            when (or (not match?) condition)
+              return (values NIL
+                             key
+                             ht-values
+                             fn-values
+                             condition)
+            finally (return T)))))
+
+;;; Feature - Consistency Check (Test Cases)
+
+(progn
+  (defparameter *context* '(1 1 2 3))
+  (defun fn ()
+    (apply #'values
+           (mapcar (lambda (x)
+                     (/ x (car *context*)))
+                   (cdr *context*))))
+  (memoize 'fn)
+  (assert (equal (multiple-value-list (fn)) '(1 2 3)))
+  (assert (eq (memoization-consistent-p 'fn) T))
+  (setf *context* '(7 1 2 3))
+  (assert (equal (multiple-value-list (memoization-consistent-p 'fn))
+                 (list NIL NIL (list 1 2 3) (list (/ 1 7) (/ 2 7) (/ 3 7)) NIL)))
+  (setf *context* '(0 1 2 3))
+  (multiple-value-bind (bool key ht-values fn-values condition)
+      (memoization-consistent-p 'fn)
+    (assert (eq bool NIL))
+    (assert (eq key NIL))
+    (assert (equal ht-values '(1 2 3)))
+    (assert (eq fn-values NIL))
+    (assert (eq (type-of condition)
+                'DIVISION-BY-ZERO))))
