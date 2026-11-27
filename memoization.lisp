@@ -64,16 +64,16 @@ being called with arguments ARGUMENTS"
   "Forget the memoized result of calling SYMBOL with arguments ARGUMENTS.
 Do not forget memoized results of calling the function with other arguments.
 Returns T if a stored result was found and removed, NIL otherwise."
- (let ((info (get symbol 'memoization-info)))
-   (when info
-     (assert (typep info 'memoization-info))
-     (with-slots (function table call-normalizer argument-normalizer) info
-       (flet ((f (&rest arguments)
-                (multiple-value-bind (results foundp) (gethash arguments table)
-                  (declare (ignore results))
-                  (remhash arguments table)
-                  foundp)))
-         (apply (or call-normalizer 'apply) #'f (apply (or argument-normalizer 'list) arguments)))))))
+  (let ((info (get symbol 'memoization-info)))
+    (when info
+      (with-slots (table call-normalizer argument-normalizer) info
+        (let ((key (if argument-normalizer
+                       (apply argument-normalizer arguments)
+                       arguments)))
+          (flet ((forget (&rest normalized) (remhash normalized table)))
+            (if call-normalizer
+                (apply call-normalizer #'forget key)
+                (remhash key table))))))))
 
 (defun unmemoize (symbol)
   "undoing the memoizing function, return the memoization-info record for the function"
@@ -115,7 +115,7 @@ e.g. with lambda-list (CONTINUATION &REST ARGUMENTS)
 which may transform the argument list before to call the continuation
 with a normalized argument list that will be used to query the computation cache
 and invoke the actual computation function; NIL means no such transformation,
-which has the same effect as specifying #'APPLY as a transformation.
+which has the same effect as specifying #'FUNCALL as a transformation.
 
 If the function was already being memoized, any previous memoization arguments,
 i.e. TABLE and ARGUMENT-NORMALIZER, is replaced with the newly specified values

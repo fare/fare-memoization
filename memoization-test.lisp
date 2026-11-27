@@ -69,3 +69,23 @@
   (is (equal (keyux :a 3) '(3 2 14)))
   (is (equal (keyux :a 3 :b 2) '(3 2 14)))
   (is (equal (keyux :b 2 :a 3) '(3 2 14))))
+
+(deftest evict-one-call ()
+  (let ((name (gensym)) (calls 0))
+    (setf (symbol-function name)
+          (lambda (&rest args) (incf calls) (values-list args)))
+    (unwind-protect
+         (progn
+           (memoize name)
+           (dolist (args '(() (3) (1 (2 3))))
+             (is (equal args (multiple-value-list (apply name args)))))
+           (is (unmemoize-1 name 3))
+           (is (not (unmemoize-1 name 3)))
+           (is (equal '(1 (2 3)) (multiple-value-list (funcall name 1 '(2 3)))))
+           (is (= 3 calls))
+           (funcall name 3)
+           (is (= 4 calls))
+           (is (unmemoize-1 name))
+           (is (unmemoize-1 name 1 '(2 3))))
+      (unmemoize name)
+      (fmakunbound name))))
